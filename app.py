@@ -62,7 +62,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # [설정] 사용자 인증키
-SERVICE_KEY = "a1129557f628d0e92794f5e8a914013df1817e58db885156d58037d70a27be40"
+SERVICE_KEY = st.secrets["SERVICE_KEY"]
 
 # --- [기능] 휴일 편집 시스템 (사이드바) ---
 if 'custom_holidays' not in st.session_state:
@@ -192,5 +192,6 @@ fig.update_layout(
     xaxis=dict(showgrid=False)
 )
 st.plotly_chart(fig, use_container_width=True)
+
 
 st.warning("⚠️ **ANALYTICS:** 오전 10시 실제 부하가 예보치를 상회하여 DR이 발령되었습니다. 17시 피크 시간대 추가 위험이 존재합니다.")
