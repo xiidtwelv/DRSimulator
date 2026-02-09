@@ -72,7 +72,7 @@ with st.sidebar:
             st.rerun()
 
 # --- [UI] 상단 헤더 및 지표 ---
-st.markdown(f"<h2>NOSTRADAMUS <span style='color:white; font-weight:200;'>실시간 전력 관제 센터</span></h2>", unsafe_allow_html=True)
+st.markdown(f"<h2>국민DR <span style='color:white; font-weight:200;'>실시간 전력 관제 센터</span></h2>", unsafe_allow_html=True)
 st.markdown(f"<p style='color:#8a94a6; font-size:0.8rem;'>동기화 시간: {now.strftime('%H:%M:%S')} (KST) | API 상태: <span style='color:#00ff7f;'>연결됨</span></p>", unsafe_allow_html=True)
 
 # 수급 상태 로직
@@ -148,3 +148,4 @@ fig.update_layout(
 )
 
 st.plotly_chart(fig, use_container_width=True)
+
