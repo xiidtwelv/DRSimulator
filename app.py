@@ -13,24 +13,30 @@ def get_now_kst():
 
 now = get_now_kst()
 
-# --- [디자인] CSS (삭선 및 오답노트 스타일 추가) ---
+# --- [디자인] CSS (색상 식별성 개선 적용) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;700&display=swap');
     [data-testid="stAppViewContainer"] { background-color: #05070a; }
     header { visibility: hidden; }
+    /* 기본 텍스트 색상을 흰색으로 유지하여 대비를 극대화 */
     h2, h4, p, span, label { font-family: 'Pretendard', sans-serif; color: #ffffff !important; }
     h2 { color: #00f2ff !important; font-size: 2rem !important; margin-bottom: 5px !important; }
     h4 { color: #00f2ff !important; border-left: 4px solid #00f2ff; padding-left: 10px; margin-top: 30px; margin-bottom: 15px; }
     .metric-card { background: #10141c; border: 1px solid #1e2633; padding: 15px; border-radius: 8px; text-align: center; }
-    .metric-label { color: #8a94a6 !important; font-size: 0.85rem !important; font-weight: 700; }
+    /* 메트릭 라벨: 기존보다 밝은 회색으로 변경하여 식별성 향상 */
+    .metric-label { color: #c9d1d9 !important; font-size: 0.85rem !important; font-weight: 700; }
     .metric-value { color: #00f2ff !important; font-size: 1.6rem !important; font-weight: 700; }
-    .fixed-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 10px; color: #c9d1d9; }
+    .fixed-table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 10px; }
     .fixed-table th { background: #161b22; color: #58a6ff !important; padding: 10px; border: 1px solid #30363d; font-size: 0.85rem; }
-    .fixed-table td { padding: 10px; border: 1px solid #30363d; text-align: center; font-size: 0.85rem; height: 60px; }
+    /* 테이블 내용 텍스트: 아주 밝은 회색으로 명시하여 가독성 확보 */
+    .fixed-table td { padding: 10px; border: 1px solid #30363d; text-align: center; font-size: 0.85rem; height: 60px; color: #e6edf3 !important; }
     .highlight-dr { color: #ff3131 !important; font-weight: 800; }
-    .strike { text-decoration: line-through; color: #8a94a6 !important; font-size: 0.8rem; }
+    /* 삭선 텍스트: 조금 더 밝게 조정하여 내용 식별 가능하게 변경 */
+    .strike { text-decoration: line-through; color: #b0b8c4 !important; font-size: 0.8rem; }
     .miss-note { background: rgba(255, 49, 49, 0.1); border: 1px solid #ff3131; padding: 15px; border-radius: 8px; margin-top: 10px; }
+    /* 오답노트 내의 일반 텍스트도 밝게 유지 */
+    .miss-note span { color: #e6edf3 !important; }
     .logic-tag { background: #1e2633; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; color: #00f2ff !important; margin: 2px; display: inline-block; }
     </style>
     """, unsafe_allow_html=True)
@@ -88,9 +94,9 @@ st.markdown(table_html, unsafe_allow_html=True)
 st.markdown("""
     <div class='miss-note'>
         <b style='color:#ff3131;'>⚠️ [오답노트] 2월 10일(화) 발령 원인 분석</b><br>
-        - <b>예측 실패 원인:</b> 전국적인 구름 유입으로 인한 <b>태양광 발전량(BTM) 급감</b> 미반영.<br>
-        - <b>데이터 분석:</b> 기온은 -3.0℃로 평이했으나, 일사량이 전일 대비 65% 감소하며 순부하(Net Load)가 급증함.<br>
-        - <b>향후 보완:</b> 미세먼지 외 '운량(Cloud Cover)' 가중치를 기존 10%에서 40%로 상향 조정 예정.
+        <span>- <b>예측 실패 원인:</b> 전국적인 구름 유입으로 인한 <b>태양광 발전량(BTM) 급감</b> 미반영.</span><br>
+        <span>- <b>데이터 분석:</b> 기온은 -3.0℃로 평이했으나, 일사량이 전일 대비 65% 감소하며 순부하(Net Load)가 급증함.</span><br>
+        <span>- <b>향후 보완:</b> 미세먼지 외 '운량(Cloud Cover)' 가중치를 기존 10%에서 40%로 상향 조정 예정.</span>
     </div>
     """, unsafe_allow_html=True)
 
@@ -113,7 +119,8 @@ fig.add_trace(go.Scatter(x=times, y=[105]*24, name="공급 능력 한계", line=
 
 fig.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=400, margin=dict(l=0, r=0, t=30, b=0),
                   legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1),
-                  yaxis=dict(range=[50, 120], title="부하 (GW)"), yaxis2=dict(range=[0, 30], showgrid=False, title="태양광 (GW)"))
+                  yaxis=dict(range=[50, 120], title="부하 (GW)"), yaxis2=dict(range=[0, 30], showgrid=False, title="태양광 (GW)"),
+                  font=dict(color="#e6edf3")) # 그래프 폰트 색상도 밝게 조정
 st.plotly_chart(fig, use_container_width=True)
 
 # --- [UI] 하단 정보 ---
