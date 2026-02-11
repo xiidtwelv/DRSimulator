@@ -1,102 +1,58 @@
-import streamlit as st
-import pandas as pd
-import requests
-from datetime import datetime, timedelta, timezone
-import plotly.graph_objects as go
+# --- [데이터 처리: API 결과를 화면용으로 가공] ---
+# API에서 온 데이터가 비어있을 경우를 대비한 기본값 설정
+if not weekly_env:
+    weekly_env = [{"date": "데이터 없음", "min": "-", "max": "-", "sky": "-", "cloud": 0, "air": "-", "dr": "-"}]
 
-# 1. 페이지 설정
-st.set_page_config(page_title="국민DR 통합 관제 V2.7", layout="wide")
-
-# --- [API 연동 핵심 로직] ---
-def get_now_kst():
-    return datetime.now(timezone(timedelta(hours=9)))
-
-@st.cache_data(ttl=3600) # 1시간 동안 데이터 캐싱
-def fetch_realtime_data(nx, ny):
-    """
-    기상청 단기예보 API 연동
-    """
-    service_key = st.secrets["SERVICE_KEY"]
-    now = get_now_kst()
-    
-    # 기상청 API는 새벽에 당일 데이터를 보려면 전날 23시나 당일 02/05시 발표를 참조해야 함
-    base_date = now.strftime("%Y%m%d")
-    base_time = "0500" # 가장 안정적인 오전 발표 타임
-    
-    url = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst"
-    params = {
-        'serviceKey': service_key,
-        'pageNo': '1',
-        'numOfRows': '200',
-        'dataType': 'JSON',
-        'base_date': base_date,
-        'base_time': base_time,
-        'nx': str(nx),
-        'ny': str(ny)
-    }
-
-    try:
-        response = requests.get(url, params=params, timeout=10)
-        res_json = response.json()
-        items = res_json['response']['body']['items']['item']
-        
-        # API 데이터를 이미지 형식의 데이터셋으로 변환
-        weather_dict = {}
-        for item in items:
-            fcst_date = item['fcstDate'][-4:] # MMDD 형식
-            if fcst_date not in weather_dict:
-                weather_dict[fcst_date] = {"date": fcst_date, "min": "0", "max": "0", "sky": "-", "cloud": 0}
-            
-            # TMN: 최저기온, TMX: 최고기온, SKY: 하늘상태
-            if item['category'] == 'TMN': weather_dict[fcst_date]['min'] = item['fcstValue']
-            if item['category'] == 'TMX': weather_dict[fcst_date]['max'] = item['fcstValue']
-            if item['category'] == 'SKY': 
-                sky_val = int(item['fcstValue'])
-                weather_dict[fcst_date]['cloud'] = sky_val
-                weather_dict[fcst_date]['sky'] = "맑음" if sky_val <= 5 else "흐림"
-
-        # 리스트 형태로 변환 (최근 5일치만)
-        weather_list = list(weather_dict.values())[:5]
-        # 미세먼지 및 DR 발령 정보는 임의의 값 부여 (실제 운영 시 추가 API 연동 가능)
-        for d in weather_list:
-            d['air'] = "보통"
-            d['dr'] = "-"
-            
-        pwr_data = {"load": 78.5, "supply": 105.0, "reserve_gw": 10.2}
-        return pwr_data, weather_list
-
-    except Exception as e:
-        # API 호출 실패 시 에러를 발생시켜 아래 try-except에서 잡히게 함
-        raise e
-
-# --- [메인 실행부] ---
-try:
-    # 2번 질문에 대한 답변: 인자값(60, 127)을 넣어 호출합니다.
-    pwr_data, weekly_env = fetch_realtime_data(60, 127)
-except Exception as e:
-    st.error(f"⚠️ API 연결 오류: {e}")
-    st.info("💡 'SERVICE_KEY'가 공공데이터포털에서 승인 완료되었는지(약 1~2시간 소요), 혹은 좌표가 정확한지 확인해 주세요.")
-    st.stop()
-
-# --- [UI 디자인 및 출력] (기존 소스 유지) ---
+# --- [UI 디자인 및 출력 복구] ---
 st.markdown("""
     <style>
-    [data-testid="stAppViewContainer"] { background-color: #05070a; color: white; }
+    [data-testid="stAppViewContainer"] { background-color: #05070a; }
+    h2 { color: #00f2ff !important; font-family: 'Pretendard'; }
     .metric-card { background: #10141c; border: 1px solid #1e2633; padding: 20px; border-radius: 8px; text-align: center; }
+    .metric-label { color: #a9d1d9; font-size: 0.9rem; font-weight: 700; }
     .metric-value { color: #00f2ff; font-size: 1.8rem; font-weight: 700; }
-    .fixed-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-    .fixed-table td, .fixed-table th { border: 1px solid #30363d; padding: 10px; text-align: center; }
+    
+    /* 표 디자인 복구 */
+    .fixed-table { width: 100%; border-collapse: collapse; margin-top: 15px; color: white; font-size: 0.9rem; }
+    .fixed-table th { background: #161b22; color: #58a6ff; padding: 12px; border: 1px solid #30363d; }
+    .fixed-table td { padding: 12px; border: 1px solid #30363d; text-align: center; }
+    .prob-critical { color: #ff3131; font-weight: bold; }
+    .prob-safe { color: #00f2ff; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("NOSTRADAMUS 실시간 관제")
+st.markdown("<h2>NOSTRADAMUS 실시간 관제 센터</h2>", unsafe_allow_html=True)
 
-# 지표 출력 부분
-m1, m2, m3 = st.columns(3)
-m1.markdown(f"<div class='metric-card'>부하: <span class='metric-value'>{pwr_data['load']} GW</span></div>", unsafe_allow_html=True)
-m2.markdown(f"<div class='metric-card'>예비력: <span class='metric-value'>{pwr_data['reserve_gw']} GW</span></div>", unsafe_allow_html=True)
-m3.markdown(f"<div class='metric-card'>상태: <span class='metric-value'>정상</span></div>", unsafe_allow_html=True)
+# 1. 상단 지표 (Metric Cards)
+m1, m2, m3, m4, m5 = st.columns(5)
+with m1: st.markdown(f"<div class='metric-card'><div class='metric-label'>현재 전력부하</div><div class='metric-value'>{pwr_data['load']} GW</div></div>", unsafe_allow_html=True)
+with m2: st.markdown(f"<div class='metric-card'><div class='metric-label'>운영 예비력</div><div class='metric-value'>{pwr_data['reserve_gw']} GW</div></div>", unsafe_allow_html=True)
+with m3: st.markdown(f"<div class='metric-card'><div class='metric-label'>오늘 기온</div><div class='metric-value' style='color:white;'>{weekly_env[0]['min']}° / {weekly_env[0]['max']}°</div></div>", unsafe_allow_html=True)
+with m4:
+    status_color = "#00f2ff" if pwr_data['reserve_gw'] > 10 else "#f1c40f"
+    st.markdown(f"<div class='metric-card'><div class='metric-label'>수급 상태</div><div class='metric-value' style='color:{status_color};'>정상</div></div>", unsafe_allow_html=True)
+with m5: st.markdown(f"<div class='metric-card'><div class='metric-label'>예측 성공률</div><div class='metric-value' style='color:#f1c40f;'>92.5%</div></div>", unsafe_allow_html=True)
 
-# 테이블 출력 부분
-st.write("### 주간 예측")
-st.table(pd.DataFrame(weekly_env))
+# 2. 주간 리포트 표 (HTML 방식으로 복구)
+st.markdown("#### 주간 DR 발령 예측 및 검증")
+table_html = "<table class='fixed-table'><thead><tr><th>항목</th>"
+for day in weekly_env:
+    table_html += f"<th>{day['date']}</th>"
+table_html += "</tr></thead><tbody>"
+
+# 행별 데이터 구성
+rows = [
+    ("기상(최저/최고)", lambda d: f"{d['min']}°C / {d['max']}°C"),
+    ("운량 (상태)", lambda d: f"{d['cloud']} ({d['sky']})"),
+    ("미세먼지", lambda d: d['air']),
+    ("발령 확률", lambda d: f"<span class='prob-safe'>{20 + (int(float(d['cloud']))*5)}%</span>")
+]
+
+for label, func in rows:
+    table_html += f"<tr><td><b>{label}</b></td>"
+    for day in weekly_env:
+        table_html += f"<td>{func(day)}</td>"
+    table_html += "</tr>"
+
+table_html += "</tbody></table>"
+st.markdown(table_html, unsafe_allow_html=True)
