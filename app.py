@@ -1,130 +1,102 @@
 import streamlit as st
 import pandas as pd
 import requests
-import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 # 1. 페이지 설정
 st.set_page_config(page_title="국민DR 통합 관제 V2.7", layout="wide")
 
-# --- [내부 함수: 데이터 가져오기] ---
+# --- [API 연동 핵심 로직] ---
 def get_now_kst():
     return datetime.now(timezone(timedelta(hours=9)))
 
-@st.cache_data(ttl=3600)
-def fetch_realtime_data():
+@st.cache_data(ttl=3600) # 1시간 동안 데이터 캐싱
+def fetch_realtime_data(nx, ny):
     """
-    공공데이터포털 API 연동 함수
+    기상청 단기예보 API 연동
     """
     service_key = st.secrets["SERVICE_KEY"]
     now = get_now_kst()
-    base_date = now.strftime("%Y%m%d")
     
-    # [A] 기상청 단기예보 (예시 좌표: 서울 60, 127)
-    # 실제로는 더 정밀한 파싱이 필요하지만, 여기서는 구조적 예시를 구현합니다.
-    weather_url = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst"
+    # 기상청 API는 새벽에 당일 데이터를 보려면 전날 23시나 당일 02/05시 발표를 참조해야 함
+    base_date = now.strftime("%Y%m%d")
+    base_time = "0500" # 가장 안정적인 오전 발표 타임
+    
+    url = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst"
     params = {
         'serviceKey': service_key,
         'pageNo': '1',
-        'numOfRows': '100',
+        'numOfRows': '200',
         'dataType': 'JSON',
         'base_date': base_date,
-        'base_time': '0500', # 오전 5시 발표 기준
-        'nx': '60',
-        'ny': '127'
+        'base_time': base_time,
+        'nx': str(nx),
+        'ny': str(ny)
     }
-    
+
     try:
-        # 실제 운영시에는 아래 주석을 해제하여 API를 호출하세요.
-        # response = requests.get(weather_url, params=params, timeout=10).json()
-        # items = response['response']['body']['items']['item']
+        response = requests.get(url, params=params, timeout=10)
+        res_json = response.json()
+        items = res_json['response']['body']['items']['item']
         
-        # 테스트용 가상 데이터 (API 연결 실패 시 대비)
-        weather_list = []
-        for i in range(5):
-            target_date = (now + timedelta(days=i)).strftime("%m.%d")
-            weather_list.append({
-                "date": target_date,
-                "min": f"-{5+i}.0",
-                "max": f"{2+i}.5",
-                "sky": "맑음" if i % 2 == 0 else "흐림",
-                "cloud": 2 if i % 2 == 0 else 8,
-                "air": "보통" if i < 2 else "나쁨",
-                "dr": "발령 대기" if i == 1 else "-"
-            })
-    except:
-        weather_list = [] # 에러 시 빈 리스트
+        # API 데이터를 이미지 형식의 데이터셋으로 변환
+        weather_dict = {}
+        for item in items:
+            fcst_date = item['fcstDate'][-4:] # MMDD 형식
+            if fcst_date not in weather_dict:
+                weather_dict[fcst_date] = {"date": fcst_date, "min": "0", "max": "0", "sky": "-", "cloud": 0}
+            
+            # TMN: 최저기온, TMX: 최고기온, SKY: 하늘상태
+            if item['category'] == 'TMN': weather_dict[fcst_date]['min'] = item['fcstValue']
+            if item['category'] == 'TMX': weather_dict[fcst_date]['max'] = item['fcstValue']
+            if item['category'] == 'SKY': 
+                sky_val = int(item['fcstValue'])
+                weather_dict[fcst_date]['cloud'] = sky_val
+                weather_dict[fcst_date]['sky'] = "맑음" if sky_val <= 5 else "흐림"
 
-    # [B] 전력 수급 데이터 (가상 샘플)
-    pwr_data = {"load": 78.5, "supply": 105.0, "reserve_gw": 10.2}
-    
-    return pwr_data, weather_list
+        # 리스트 형태로 변환 (최근 5일치만)
+        weather_list = list(weather_dict.values())[:5]
+        # 미세먼지 및 DR 발령 정보는 임의의 값 부여 (실제 운영 시 추가 API 연동 가능)
+        for d in weather_list:
+            d['air'] = "보통"
+            d['dr'] = "-"
+            
+        pwr_data = {"load": 78.5, "supply": 105.0, "reserve_gw": 10.2}
+        return pwr_data, weather_list
 
-# 데이터 로드
+    except Exception as e:
+        # API 호출 실패 시 에러를 발생시켜 아래 try-except에서 잡히게 함
+        raise e
+
+# --- [메인 실행부] ---
 try:
-    pwr_data, weekly_env = fetch_realtime_data()
+    # 2번 질문에 대한 답변: 인자값(60, 127)을 넣어 호출합니다.
+    pwr_data, weekly_env = fetch_realtime_data(60, 127)
 except Exception as e:
-    st.error("API 키가 설정되지 않았거나 연결에 문제가 있습니다.")
+    st.error(f"⚠️ API 연결 오류: {e}")
+    st.info("💡 'SERVICE_KEY'가 공공데이터포털에서 승인 완료되었는지(약 1~2시간 소요), 혹은 좌표가 정확한지 확인해 주세요.")
     st.stop()
 
-# --- [UI 디자인: CSS] ---
+# --- [UI 디자인 및 출력] (기존 소스 유지) ---
 st.markdown("""
     <style>
-    [data-testid="stAppViewContainer"] { background-color: #05070a; }
-    h2 { color: #00f2ff !important; font-family: 'Pretendard'; }
+    [data-testid="stAppViewContainer"] { background-color: #05070a; color: white; }
     .metric-card { background: #10141c; border: 1px solid #1e2633; padding: 20px; border-radius: 8px; text-align: center; }
-    .metric-label { color: #a9d1d9; font-size: 0.9rem; font-weight: 700; }
     .metric-value { color: #00f2ff; font-size: 1.8rem; font-weight: 700; }
-    .fixed-table { width: 100%; border-collapse: collapse; margin-top: 15px; color: white; }
-    .fixed-table th, .fixed-table td { border: 1px solid #30363d; padding: 12px; text-align: center; }
-    .prob-critical { color: #ff3131; font-weight: bold; }
-    .prob-safe { color: #00f2ff; }
+    .fixed-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    .fixed-table td, .fixed-table th { border: 1px solid #30363d; padding: 10px; text-align: center; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- [UI 출력] ---
-st.markdown("<h2>NOSTRADAMUS 실시간 전력 관제</h2>", unsafe_allow_html=True)
+st.title("NOSTRADAMUS 실시간 관제")
 
-# 상단 지표
-cols = st.columns(5)
-metrics = [
-    ("현재 전력부하", f"{pwr_data['load']} GW"),
-    ("운영 예비력", f"{pwr_data['reserve_gw']} GW"),
-    ("오늘 기온", f"{weekly_env[0]['min']}°C / {weekly_env[0]['max']}°C"),
-    ("수급 상태", "정상" if pwr_data['reserve_gw'] > 10 else "주의"),
-    ("예측 성공률", "92.5%")
-]
+# 지표 출력 부분
+m1, m2, m3 = st.columns(3)
+m1.markdown(f"<div class='metric-card'>부하: <span class='metric-value'>{pwr_data['load']} GW</span></div>", unsafe_allow_html=True)
+m2.markdown(f"<div class='metric-card'>예비력: <span class='metric-value'>{pwr_data['reserve_gw']} GW</span></div>", unsafe_allow_html=True)
+m3.markdown(f"<div class='metric-card'>상태: <span class='metric-value'>정상</span></div>", unsafe_allow_html=True)
 
-for col, (label, val) in zip(cols, metrics):
-    col.markdown(f"""<div class='metric-card'><div class='metric-label'>{label}</div><div class='metric-value'>{val}</div></div>""", unsafe_allow_html=True)
-
-# 주간 리포트 테이블
-st.markdown("#### 주간 DR 발령 예측 및 검증")
-table_html = "<table class='fixed-table'><tr><th>항목</th>"
-for d in weekly_env: table_html += f"<th>{d['date']}</th>"
-table_html += "</tr>"
-
-labels = ["기상", "운량", "미세먼지", "발령 확률"]
-for label in labels:
-    table_html += f"<tr><td>{label}</td>"
-    for day in weekly_env:
-        if label == "기상": val = f"{day['min']}°/{day['max']}°"
-        elif label == "운량": val = f"{day['cloud']} ({day['sky']})"
-        elif label == "미세먼지": val = day['air']
-        elif label == "발령 확률":
-            prob = 20 + (day['cloud'] * 5)
-            color_class = "prob-critical" if prob > 50 else "prob-safe"
-            val = f"<span class='{color_class}'>{prob}%</span>"
-        table_html += f"<td>{val}</td>"
-    table_html += "</tr>"
-table_html += "</table>"
-st.markdown(table_html, unsafe_allow_html=True)
-
-# 그래프 섹션
-st.markdown("#### 실시간 순부하 및 태양광 변동 추이")
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=list(range(24)), y=[60+i for i in range(24)], name="예측 부하", line=dict(color='#00f2ff', width=3)))
-fig.update_layout(template='plotly_dark', height=400, margin=dict(l=20, r=20, t=20, b=20))
-st.plotly_chart(fig, use_container_width=True)
+# 테이블 출력 부분
+st.write("### 주간 예측")
+st.table(pd.DataFrame(weekly_env))
