@@ -148,4 +148,4 @@ fig.update_layout(
 
 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
-st.info("✨ Twin-Day 분석: 오늘의 기상/부하 패턴은 **2024.01.15(DR
+st.info("✨ Twin-Day 분석: 오늘의 기상/부하 패턴은 **2024.01.15(DR 발령일)**과 94.2% 유사합니다.")
