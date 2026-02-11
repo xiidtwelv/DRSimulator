@@ -142,20 +142,5 @@ st.markdown(html, unsafe_allow_html=True)
 # 3단: 그래프
 st.markdown("#### 실시간 공급/부하 및 태양광 변동 추이 (LIVE)")
 # (그래프 로직 유지)
-times = [f"{i:02d}:00" for i in range(24)]
-# 시뮬레이션용 베이스 부하 로직 결합
-base_load = [65, 63, 62, 63, 65, 75, 85, 92, 95, 93, 91, 89, 75, 86, 91, 93, 95, 98, 96, 92, 88, 82, 75, 70]
 
-fig = make_subplots(specs=[[{"secondary_y": True}]])
-fig.add_trace(go.Scatter(x=times, y=[pwr_data['supply']]*24, name="공급 한계", line=dict(color='#888888', dash='dot')))
-fig.add_trace(go.Scatter(x=times, y=base_load, name="예측 부하(GW)", line=dict(color='#00D4FF', dash='dash')))
-# 실시간 부하 (현재 시간까지만)
-current_hr = now.hour
-fig.add_trace(go.Scatter(x=times[:current_hr+1], y=base_load[:current_hr+1], name="실시간 부하(GW)", line=dict(color='#00D4FF', width=5)))
-
-fig.update_layout(template="plotly_dark", height=500, margin=dict(t=30, b=10, l=10, r=10),
-                  legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="right", x=1))
-st.plotly_chart(fig, use_container_width=True)
-
-st.caption(f"최종 업데이트: {now.strftime('%Y-%m-%d %H:%M:%S')} (KST)")
 
