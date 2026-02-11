@@ -82,4 +82,9 @@ with st.spinner('기상청 데이터를 불러오는 중...'):
         st.table(df)
         
     else:
-        st.error("데이터를 불러
+        st.error("데이터를 불러오지 못했습니다. 서비스 키 혹은 기상청 점검 상태를 확인하세요.")
+        if 'response' in data:
+            st.write(f"사유: {data['response']['header']['resultMsg']}")
+
+st.sidebar.markdown("### 설정 안내")
+st.sidebar.info("기상청 API는 발표 직후(06:05, 18:05 등)에는 데이터 업데이트 지연이 발생할 수 있습니다.")
